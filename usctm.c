@@ -75,8 +75,11 @@ module_param(sys_call_table_address, ulong, 0660);
 unsigned long sys_ni_syscall_address = 0x0;
 module_param(sys_ni_syscall_address, ulong, 0660);
 
-// verifica semplicemente se la posizione i-esima della tabella
-// è quella relativa alla nostra First-ni-Syscall
+
+/*
+ * Questa funzione verifica semplicemente se la posizione i-esima
+ * della tabella è quella relativa alla nostra First-ni-Syscall
+ */
 int good_area(unsigned long * addr) {
 	int i;
 
@@ -89,8 +92,9 @@ int good_area(unsigned long * addr) {
     return 0;
 }
 
-/* This routine checks if the page contains the
- * begin of the syscall_table.
+/*
+ * Questa funzione controlla se la pagina contiene l'inizio
+ * della syscall_table.
  */
 int validate_page(unsigned long *addr) {
 	int i = 0;
@@ -135,7 +139,11 @@ int validate_page(unsigned long *addr) {
 	return 0;
 }
 
-/* This routines looks for the syscall table.  */
+
+
+/*
+ * Questa funzione cerca la syscall_table.
+ */
 void syscall_table_finder(void) {
 	unsigned long k;
   // current page
