@@ -41,20 +41,28 @@
 #include <asm/apic.h>
 #include <linux/syscalls.h>
 #include "./include/vtpmo.h"
+#include "./lib/vtpmo.c"
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Daniele Mariano");
+MODULE_AUTHOR("Mirko Leandri");
 MODULE_DESCRIPTION("USCTM");
+
+
 
 #define MODNAME "USCTM"
 
+
 extern int sys_vtpmo(unsigned long vaddr);
 
+
 #define ADDRESS_MASK 0xfffffffffffff000
-// to migrate
+//to migrate
+#define REQUIRED_SYS_NI_SYSCALL  4
+//numero di spazi necessari per allocare syscall
+// richieste dalla specifica del progetto
 #define START 			0xffffffff00000000ULL
-// use this as starting address --> this is a biased
-// search since does not start from 0xffff000000000000
+//use this as starting address --> this is a biased
+//search since does not start from 0xffff000000000000
 #define MAX_ADDR		0xfffffffffff00000ULL
 #define FIRST_NI_SYSCALL	134
 #define SECOND_NI_SYSCALL	174
@@ -66,8 +74,13 @@ extern int sys_vtpmo(unsigned long vaddr);
 
 #define ENTRIES_TO_EXPLORE 256
 
+
 unsigned long *hacked_ni_syscall=NULL;
 unsigned long **hacked_syscall_tbl=NULL;
+
+unsigned long *ni_syscall_founded = NULL;
+// In questa variabile inserisco gli indirizzi delle
+// sys_ni_syscall trovate nella tabella delle syscall
 
 unsigned long sys_call_table_address = 0x0;
 module_param(sys_call_table_address, ulong, 0660);
@@ -80,31 +93,35 @@ module_param(sys_ni_syscall_address, ulong, 0660);
  * Questa funzione verifica semplicemente se la posizione i-esima
  * della tabella è quella relativa alla nostra First-ni-Syscall
  */
-int good_area(unsigned long * addr) {
+ int good_area(unsigned long * addr){
+
 	int i;
 
 	for(i=1;i<FIRST_NI_SYSCALL;i++){
 		if(addr[i] == addr[FIRST_NI_SYSCALL]) goto bad_area;
 	}
+
 	return 1;
 
-  bad_area:
-    return 0;
+bad_area:
+
+	return 0;
+
 }
+
 
 /*
  * Questa funzione controlla se la pagina contiene l'inizio
  * della syscall_table.
  */
-int validate_page(unsigned long *addr) {
+ int validate_page(unsigned long *addr){
 	int i = 0;
 	unsigned long page 	= (unsigned long) addr;
 	unsigned long new_page 	= (unsigned long) addr;
 	for(; i < PAGE_SIZE; i+=sizeof(void*)){
 		new_page = page+i+SEVENTH_NI_SYSCALL*sizeof(void*);
 
-		// If the table occupies 2 pages check if the second
-    // one is materialized in a frame
+		// If the table occupies 2 pages check if the second one is materialized in a frame
 		if(
 			( (page+PAGE_SIZE) == (new_page & ADDRESS_MASK) )
 			&& sys_vtpmo(new_page) == NO_MAP
@@ -114,11 +131,9 @@ int validate_page(unsigned long *addr) {
 		addr = (unsigned long*) (page+i);
 		if(
 			   ( (addr[FIRST_NI_SYSCALL] & 0x3  ) == 0 )
-			   && (addr[FIRST_NI_SYSCALL] != 0x0 )
-         // not points to 0x0
-			   && (addr[FIRST_NI_SYSCALL] > 0xffffffff00000000 )
-         // not points to a locatio lower than 0xffffffff00000000
-	    //&& ( (addr[FIRST_NI_SYSCALL] & START) == START )
+			   && (addr[FIRST_NI_SYSCALL] != 0x0 )			// not points to 0x0
+			   && (addr[FIRST_NI_SYSCALL] > 0xffffffff00000000 )	// not points to a locatio lower than 0xffffffff00000000
+	//&& ( (addr[FIRST_NI_SYSCALL] & START) == START )
 			&&   ( addr[FIRST_NI_SYSCALL] == addr[SECOND_NI_SYSCALL] )
 			&&   ( addr[FIRST_NI_SYSCALL] == addr[THIRD_NI_SYSCALL]	 )
 			&&   ( addr[FIRST_NI_SYSCALL] == addr[FOURTH_NI_SYSCALL] )
@@ -127,11 +142,9 @@ int validate_page(unsigned long *addr) {
 			&&   ( addr[FIRST_NI_SYSCALL] == addr[SEVENTH_NI_SYSCALL] )
 			&&   (good_area(addr))
 		){
-			hacked_ni_syscall = (void*)(addr[FIRST_NI_SYSCALL]);
-      // save ni_syscall
+			hacked_ni_syscall = (void*)(addr[FIRST_NI_SYSCALL]);				// save ni_syscall
 			sys_ni_syscall_address = (unsigned long)hacked_ni_syscall;
-			hacked_syscall_tbl = (void*)(addr);
-      // save syscall_table address
+			hacked_syscall_tbl = (void*)(addr);				// save syscall_table address
 			sys_call_table_address = (unsigned long) hacked_syscall_tbl;
 			return 1;
 		}
@@ -140,15 +153,12 @@ int validate_page(unsigned long *addr) {
 }
 
 
-
 /*
  * Questa funzione cerca la syscall_table.
  */
-void syscall_table_finder(void) {
-	unsigned long k;
-  // current page
-	unsigned long candidate;
-  // current page
+void syscall_table_finder(void){
+	unsigned long k; // current page
+	unsigned long candidate; // current page
 
 	for(k=START; k < MAX_ADDR; k+=4096){
 		candidate = k;
@@ -157,42 +167,119 @@ void syscall_table_finder(void) {
 		){
 			// check if candidate maintains the syscall_table
 			if(validate_page( (unsigned long *)(candidate)) ){
-				printk("%s: syscall table found at %px\n", MODNAME, (void*)(hacked_syscall_tbl));
-				printk("%s: sys_ni_syscall found at %px\n", MODNAME, (void*)(hacked_ni_syscall));
+				printk("%s: syscall table found at %px\n",MODNAME,(void*)(hacked_syscall_tbl));
+				printk("%s: sys_ni_syscall found at %px\n",MODNAME,(void*)(hacked_ni_syscall));
 				break;
 			}
 		}
 	}
 }
 
+
+/*
+ * Con questa funzione vado a settare il numero della syscall table
+ * con ni_sys_call all'interno della prima entry libera del nostro array
+ */
+int fill_ni_syscall_founded(int i, int c){
+    int *temp;
+    int k;
+	if(ni_syscall_founded[c] == NULL){
+		printk("inserisco nel posto %d dell'array la posizione sys_ni_syscall %d ", c, i);
+		temp = i;
+		ni_syscall_founded[c] = (unsigned long*)temp;
+        for(k = 0; k < c; k ++){
+            printk("ecco le entry: %lu", ni_syscall_founded[k]);
+        }
+    }
+	else{
+		printk("lo spazio %d è pieno, passo al successivo", c);
+		fill_ni_syscall_founded(i,c+1);
+	}
+    return 0;
+
+}
+
+
+
 #define MAX_FREE 15
 int free_entries[MAX_FREE];
-module_param_array(free_entries, int, NULL, 0660);
-//default array size already known - here we expose what entries are free
+module_param_array(free_entries,int,NULL,0660);//default array size already known - here we expose what entries are free
+
+int syscall_number_finder(void){
+	int i,j,counter;
+    counter = 0;
+	syscall_table_finder();
+	if(!hacked_syscall_tbl){
+		printk("%s: failed to find the sys_call_table\n",MODNAME);
+		return -1;
+	}
+
+	j=0;
+	for(i=0;i<ENTRIES_TO_EXPLORE;i++)
+		if(hacked_syscall_tbl[i] == hacked_ni_syscall){
+			printk("%s: found sys_ni_syscall entry at syscall_table[%d]\n",MODNAME,i);
+			free_entries[j++] = i;
+            if(counter == REQUIRED_SYS_NI_SYSCALL){
+                printk("la tabella è piena\n");
+                return 0;
+            }
+            fill_ni_syscall_founded(i,0);
+            counter = counter +1;
+			if(j>=MAX_FREE) break;
+		}
+		return 0;
+
+}
+
 
 #define SYS_CALL_INSTALL
 
 #ifdef SYS_CALL_INSTALL
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
-__SYSCALL_DEFINEx(2, _trial, unsigned long, A, unsigned long, B){
+__SYSCALL_DEFINEx(1, _prova, unsigned long, A){
 #else
-asmlinkage long sys_trial(unsigned long A, unsigned long B){
+asmlinkage long sys_prova(unsigned long A){
 #endif
 
-printk("%s: thread %d requests a trial sys_call with %lu and %lu as parameters\n",MODNAME,current->pid,A,B);
-return 0;
+        printk("%s: è stata inserita la tua prima syscall di parametro %lu.\n",MODNAME,A);
+
+        return 0;
 
 }
 
+
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
-static unsigned long sys_trial = (unsigned long) __x64_sys_trial;
+static unsigned long sys_prova = (unsigned long) __x64_sys_prova;
+#else
+#endif
+
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
+__SYSCALL_DEFINEx(2, _seconda, int, A, int, B){
+#else
+asmlinkage long sys_seconda(int A, int B){
+#endif
+
+    int c = A + B;
+    printk("%s: è stata inserita la seconda syscall che riesce anche a fare una somma in particolare dice che %d + %d fa %d\n",MODNAME,A, B, c);
+
+    return 0;
+
+}
+
+
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
+static unsigned long sys_seconda = (unsigned long) __x64_sys_seconda;
 #else
 #endif
 
 unsigned long cr0;
 
 static inline void
-write_cr0_forced(unsigned long val) {
+write_cr0_forced(unsigned long val)
+{
     unsigned long __force_order;
 
     /* __asm__ __volatile__( */
@@ -202,57 +289,62 @@ write_cr0_forced(unsigned long val) {
 }
 
 static inline void
-protect_memory(void) {
+protect_memory(void)
+{
     write_cr0_forced(cr0);
 }
 
 static inline void
-unprotect_memory(void) {
+unprotect_memory(void)
+{
     write_cr0_forced(cr0 & ~X86_CR0_WP);
 }
 
 #else
 #endif
 
+
+int init_module2(void) {
+        printk("%s: initializing\n",MODNAME);
+
+	return 0;
+}
+
+
 int init_module(void) {
-	int i,j;
-	printk("%s: initializing\n", MODNAME);
-	syscall_table_finder();
+    printk("%s: initializing\n",MODNAME);
+    ni_syscall_founded = kmalloc(sizeof(unsigned long) * REQUIRED_SYS_NI_SYSCALL, GFP_KERNEL);
+    syscall_number_finder();
 
-	if(!hacked_syscall_tbl){
-		printk("%s: failed to find the sys_call_table\n", MODNAME);
-		return -1;
-	}
+#ifdef SYS_CALL_INSTALL
+	cr0 = read_cr0();
+        unprotect_memory();
+        hacked_syscall_tbl[FIRST_NI_SYSCALL] = (unsigned long*)sys_prova;
+        hacked_syscall_tbl[ni_syscall_founded[1]] = (unsigned long*)sys_seconda;
 
-	j=0;
-	for(i=0;i<ENTRIES_TO_EXPLORE;i++)
-		if(hacked_syscall_tbl[i] == hacked_ni_syscall){
-			printk("%s: found sys_ni_syscall entry at syscall_table[%d]\n", MODNAME,i );
-			free_entries[j++] = i;
-			if(j>=MAX_FREE) break;
-		}
+    protect_memory();
+	printk("%s: 2 sys_call with 1 parameters has been installed as a trial on the sys_call_table at displacement %d e %lu\n",MODNAME,FIRST_NI_SYSCALL, ni_syscall_founded[1]);
+#else
+#endif
 
-  #ifdef SYS_CALL_INSTALL
-  	cr0 = read_cr0();
-          unprotect_memory();
-          hacked_syscall_tbl[FIRST_NI_SYSCALL] = (unsigned long*)sys_trial;
-          protect_memory();
-  	printk("%s: a sys_call with 2 parameters has been installed as a trial on the sys_call_table at displacement %d\n", MODNAME, FIRST_NI_SYSCALL);
-  #else
-  #endif
+        printk("%s: module correctly mounted\n",MODNAME);
 
-  printk("%s: module correctly mounted\n", MODNAME);
-  return 0;
+        return 0;
+
 }
 
 void cleanup_module(void) {
-  #ifdef SYS_CALL_INSTALL
-  	cr0 = read_cr0();
-          unprotect_memory();
-          hacked_syscall_tbl[FIRST_NI_SYSCALL] = (unsigned long*)hacked_ni_syscall;
-          protect_memory();
-  #else
-  #endif
 
-  printk("%s: shutting down\n", MODNAME);
+#ifdef SYS_CALL_INSTALL
+	cr0 = read_cr0();
+        unprotect_memory();
+        hacked_syscall_tbl[FIRST_NI_SYSCALL] = (unsigned long*)hacked_ni_syscall;
+        printk("sto impostando ni_syscall nella posizione %d", FIRST_NI_SYSCALL);
+        hacked_syscall_tbl[ni_syscall_founded[1]] = (unsigned long*)sys_seconda;
+        printk("sto impostando ni_syscall nella posizione %lu", ni_syscall_founded[1]);
+    protect_memory();
+#else
+#endif
+        printk("%s: shutting down\n",MODNAME);
+
 }
