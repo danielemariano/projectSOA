@@ -1,0 +1,3 @@
+/Users/danielemariano/Desktop//Università/Progetti/SOA/testSOA/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/Users/danielemariano/Desktop//Università/Progetti/SOA/testSOA/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/danielemariano/Desktop//Università/Progetti/SOA/testSOA/cmake-build-debug/CMakeFiles/testSOA.dir
