@@ -14,7 +14,9 @@
 struct tag *TAG_list = NULL;
 struct level *level_list = NULL;
 spinlock_t lock;
-
+spinlock_t tag_lock;
+//poteva essermi utile tenere la conta dei tag aperti per migliorare le prestazioni sul driver
+int total_tag = 0;
 
 int tag_get(int key, int command, int permission){
     //Controllo se è gia istanziata quell'area di memoria, se è la prima volta che chiamo questa call o se è stata fatta gia la free, verrà reistanziata
@@ -32,13 +34,17 @@ int tag_get(int key, int command, int permission){
         my_tag.exist = 1;
         my_tag.permission = permission;
         //Qui forse ci mettiamo un bel SEMAFORO
+
         if (TAG_list[key].exist != 1) {
             my_tag.tag_id = key;
             if (key == IPC_PRIVATE) {
                 my_tag.private = 0;
             }
             my_tag.opened = 1;
+            //sincronizzo la struttura dei tag
+            spin_lock(&tag_lock);
             TAG_list[key] = my_tag;
+            total_tag = total_tag + 1;
             printk("Hai creato un nuovo tag nella posizione %d", key);
             //ora creo la serie di livelli associati al tag di riferimento
             level_list = kmalloc(sizeof(struct level) * LEVELS, GFP_KERNEL);
@@ -54,6 +60,7 @@ int tag_get(int key, int command, int permission){
                 level_list[lvl].is_empty = 0;
             }
             TAG_list[key].structlevels = level_list;
+            spin_unlock(&my_tag)
             printk("ho inserito i livelli: %d", lvl);
         }
         else {

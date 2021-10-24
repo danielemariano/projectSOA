@@ -25,7 +25,7 @@
 #include "data_structures.h"
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Mirko Leandri");
+MODULE_AUTHOR("Daniele Mariano");
 MODULE_DESCRIPTION("syscall_filler");
 
 
