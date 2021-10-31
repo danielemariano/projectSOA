@@ -26,15 +26,10 @@
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Daniele Mariano");
-MODULE_DESCRIPTION("syscall_filler");
 
-
-
-#define MODNAME "syscall_filler"
-
+#define MODNAME "SYCALL HACKING"
 
 extern int sys_vtpmo(unsigned long vaddr);
-
 
 #define ADDRESS_MASK 0xfffffffffffff000//to migrate
 #define REQUIRED_SYS_NI_SYSCALL  4 //numero di spazi necessari per allocare syscall di cui necessitiamo
@@ -47,14 +42,12 @@ extern int sys_vtpmo(unsigned long vaddr);
 #define FIFTH_NI_SYSCALL	214
 #define SIXTH_NI_SYSCALL	215
 #define SEVENTH_NI_SYSCALL	236
-
 #define ENTRIES_TO_EXPLORE 256
 
 
 unsigned long *hacked_ni_syscall=NULL;
 unsigned long **hacked_syscall_tbl=NULL;
 
-//in questa variabile inserisco gli indirizzi delle sys_ni_syscall trovate nella tabella delle syscall
 unsigned long *ni_syscall_founded = NULL;
 
 unsigned long sys_call_table_address = 0x0;
@@ -64,24 +57,16 @@ unsigned long sys_ni_syscall_address = 0x0;
 module_param(sys_ni_syscall_address, ulong, 0660);
 
 
-
 //verifica semplicemente se la posizione i-esima della tabella è quella relativa alla nostra First-ni-Syscall
 int good_area(unsigned long * addr){
-
     int i;
-
     for(i=1;i<FIRST_NI_SYSCALL;i++){
         if(addr[i] == addr[FIRST_NI_SYSCALL]) goto bad_area;
     }
-
     return 1;
-
     bad_area:
-
     return 0;
-
 }
-
 
 
 /* This routine checks if the page contains the begin of the syscall_table.  */
@@ -123,6 +108,7 @@ int validate_page(unsigned long *addr){
     return 0;
 }
 
+
 /* This routines looks for the syscall table.  */
 void syscall_table_finder(void){
     unsigned long k; // current page
@@ -141,8 +127,8 @@ void syscall_table_finder(void){
             }
         }
     }
-
 }
+
 
 //vado a settare il numero della syscall table con ni_sys_call all'interno della prima entry libera del nostro array
 int fill_ni_syscall_founded(int i, int c){
@@ -162,14 +148,13 @@ int fill_ni_syscall_founded(int i, int c){
         fill_ni_syscall_founded(i,c+1);
     }
     return 0;
-
 }
-
 
 
 #define MAX_FREE 15
 int free_entries[MAX_FREE];
 module_param_array(free_entries,int,NULL,0660);//default array size already known - here we expose what entries are free
+
 
 int syscall_number_finder(void){
     int i,j,counter;
@@ -194,7 +179,6 @@ int syscall_number_finder(void){
             if(j>=MAX_FREE) break;
         }
     return 0;
-
 }
 
 //Qui sto inserendo le mie system call nuove, il cui frontend verrà implementato in un altro file
@@ -207,7 +191,6 @@ __SYSCALL_DEFINEx(3, _tag_get, int, key, int, command, int, permission){
 asmlinkage int sys_tag_get(int key, int command, int permission){
 #endif
     return tag_get(key,command,permission);
-
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
@@ -216,7 +199,6 @@ __SYSCALL_DEFINEx(4, _tag_send, int, tag, int, level, char *, buffer, size_t, si
 asmlinkage int sys_tag_send(int tag, int level, char * buffer, size_t size){
 #endif
     return tag_send(tag,level,buffer, size);
-
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
@@ -225,7 +207,6 @@ __SYSCALL_DEFINEx(4, _tag_receive, int, tag, int, level, char *, buffer, size_t,
 asmlinkage int sys_tag_receive(int tag, int level, char * buffer, size_t size){
 #endif
     return tag_receive(tag,level,buffer,size);
-
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
@@ -240,10 +221,8 @@ asmlinkage int sys_tag_ctl(int tag, int command){
 unsigned long cr0;
 
 static inline void
-write_cr0_forced(unsigned long val)
-{
+write_cr0_forced(unsigned long val){
     unsigned long __force_order;
-
     /* __asm__ __volatile__( */
     asm volatile(
     "mov %0, %%cr0"
@@ -251,14 +230,12 @@ write_cr0_forced(unsigned long val)
 }
 
 static inline void
-protect_memory(void)
-{
+protect_memory(void){
     write_cr0_forced(cr0);
 }
 
 static inline void
-unprotect_memory(void)
-{
+unprotect_memory(void){
     write_cr0_forced(cr0 & ~X86_CR0_WP);
 }
 
@@ -288,16 +265,13 @@ int init_module(void) {
     hacked_syscall_tbl[THIRD_NI_SYSCALL] = (unsigned long*)sys_tag_receive;
     hacked_syscall_tbl[FOURTH_NI_SYSCALL] = (unsigned long*)sys_tag_ctl;
 
-
     protect_memory();
     printk("%s: Ho inserito le mie 4 nuove syscall nelle entry della sys call table: %d, %d, %d, %d \n",MODNAME,FIRST_NI_SYSCALL, SECOND_NI_SYSCALL, THIRD_NI_SYSCALL, FOURTH_NI_SYSCALL);
 #else
 #endif
 
     printk("%s: module correctly mounted\n",MODNAME);
-
     return 0;
-
 }
 //Quando smonto il modulo mi assicuro di rimettere nella loro posizione le entry corrispondenti a ni_syscall per avere la possibilità di rieseguire il tutto una seconda volta senza problemi e senza dover riavviare la macchina virtuale
 void cleanup_module(void) {
@@ -305,7 +279,6 @@ void cleanup_module(void) {
 #ifdef SYS_CALL_INSTALL
     cr0 = read_cr0();
     unprotect_memory();
-    //qui libero l'area di memoria che mi riempie le dinamicamente questo array con le entry ni_syscall che per ora resta inutilizzata
     kfree(ni_syscall_founded);
     kfree(TAG_list);
     kfree(level_list);
@@ -317,6 +290,7 @@ void cleanup_module(void) {
     printk("resetto la entry della syscall table numero %d", THIRD_NI_SYSCALL);
     hacked_syscall_tbl[FOURTH_NI_SYSCALL] = (unsigned long*)hacked_ni_syscall;
     printk("resetto la entry della syscall table numero %d", FOURTH_NI_SYSCALL);
+    printk("libero la memoria delle strutture");
     protect_memory();
 
 #else

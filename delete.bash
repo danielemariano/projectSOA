@@ -1,0 +1,27 @@
+#!/bin/bash
+
+echo "driver files are removed"
+rm ".driver.ko.cmd"
+rm ".driver.mod.cmd"
+rm ".driver.mod.o.cmd"
+rm ".driver.o.cmd"
+rm "driver.o"
+rm "driver.ko"
+rm "driver.mod.c"
+rm "driver.mod"
+rm "driver.mod.o"
+
+echo "module files are removed"
+rm ".Module.symvers.cmd"
+rm ".modules.order.cmd"
+
+echo "syscall files are removed"
+rm ".syscall_filler.ko.cmd"
+rm ".syscall_filler.mod.cmd"
+rm ".syscall_filler.mod.o.cmd"
+rm ".syscall_filler.o.cmd"
+rm "syscall_filler.o"
+rm "syscall_filler.ko"
+rm "syscall_filler.mod.c"
+rm "syscall_filler.mod"
+rm "syscall_filler.mod.o"
