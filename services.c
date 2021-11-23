@@ -19,9 +19,27 @@ int signal_on = 0;
 int total_tag = 0;
 
 
+/**
+ * Funzione che implementa la tag_get, 1° nuova hacked syscall.
+ *
+ * Prima di tutto viene eseguito un controllo sulla TAG_List, in caso fosse vuota
+ * stiamo eseguendo questo codice per la prima volta oppure è stata eseguita una
+ * eliminazione di tutti i servizi TAG presenti nel sistema, in questo caso
+ * dobbiamo quindi riservare lo spazio per le operazioni di get del TAG service based.
+ *
+ * Poi controlliamo che tipo di get è stata richiesta attraverso il command, nel caso
+ * fosse 1 siamo nella create TAG mentre nel caso fosse 2 siamo nella open TAG.
+ *
+ * Il primo caso crea un nuovo tag inizializzando le strutture collegate con i relativi
+ * valori. La sincronizzazione della creazione è assicurata da spin_lock e wait_queue APIs.
+ *
+ * Il secondo caso vede l'apertura di un nuovo TAG attraverso il settaggio di un flag
+ * della struttura associata al TAG nel caso in cui il tipo di permission ci consentirebbe
+ * questo tipo di operazione.
+ */
 int tag_get(int key, int command, int permission){
     //Controllo se è gia istanziata quell'area di memoria, se è la prima volta
-    //che chiamo questa call o se è stata fatta gia la free, verrà reistanziata
+    //che chiamo questa call o se è stata fatta già la free, verrà reistanziata
     if(TAG_list == NULL) {
         //libero questa memoria nella syscall filler allo smontaggio del modulo
         TAG_list = kmalloc(sizeof(struct tag) * MAX_TAG_NUMBER, GFP_KERNEL);
@@ -65,11 +83,11 @@ int tag_get(int key, int command, int permission){
                 wait_queue_head_t wq;
                 init_waitqueue_head(&wq);
                 level_list[lvl].wq = wq;
-                /*if(level_list[lvl].wq == NULL) {
+                if(level_list[lvl].wq == NULL) {
                     printk(KERN_ERR "Unable to allocate new wait queue for replacement\n");
                     kfree(level_list[lvl].wq);
                     return -ENOMEM;
-                }*/
+                }
 
             }
             TAG_list[key].structlevels = level_list;
@@ -113,6 +131,15 @@ int tag_get(int key, int command, int permission){
 }
 
 
+/**
+ * Funzione che implementa la tag_send, 2° nuova hacked syscall.
+ *
+ * Nella send prima di tutto controlliamo se il servizio TAG non esiste, è chiuso,
+ * o nessuno sta aspettando messaggi su quel TAG; nel caso contrario possiamo procedere
+ * a ricevere i messaggi tramite una copy_from_user sincronizzata ocn spin_lock,
+ * __sync_fetch_and_add e wake_up_interruptible che ci permettono di continuare
+ * l'esecuzione e di notificare gli eventi a tutti.
+ */
 int tag_send(int tag, int level, char *buffer, size_t size){
     int ret;
     printk("questo è il tag: %d", tag);
@@ -149,6 +176,19 @@ int tag_send(int tag, int level, char *buffer, size_t size){
 }
 
 
+/**
+ * Funzione che implementa la tag_receive, 3° nuova hacked syscall.
+ *
+ * In questa funzione andiamo a ricevere messaggi andando sempre a curare la
+ * sincronizzazione mediante le operazioni di spin locking e di __sync_fetch_and_add
+ * per notificare ed eseguire aggiornamenti atomicamente. Dopo di che allochiamo il
+ * buffer per la ricezione, aggiorno il numero di lettori per quel determinato livello
+ * del TAG e se non ho ricevuto errore (-ERESTARTSYS) o altro nel flusso ricevo il
+ * messaggio mediante la copy_to_user ed aggiorno i relativi valori del buffer del livello
+ * del TAG e di lettori associati. Nel caso non ci fossero più lettori in attesa
+ * la wait si sblocca e la ricezione di messaggi termina liberando e pulendo le varie
+ * aree di memoria utilizzate/sporcate.
+ */
 int tag_receive(int tag, int level, char *buffer, size_t size) {
     int wait;
     __sync_fetch_and_add(&TAG_list[tag].structlevels[level].reader,1);
@@ -211,10 +251,15 @@ int tag_receive(int tag, int level, char *buffer, size_t size) {
 }
 
 
+/**
+ * Funzione che implementa la tag_ctl, 4° nuova hacked syscall.
+ *
+ * Questa funzione nel caso in cui il comando sia 1 risveglia tutti i
+ * threads mentre nel caso in cui il comando sia 2 chiude i Tag service aperti.
+ */
 int tag_ctl(int tag, int command) {
     if(command == 1){
         char *s;
-        //libero a riga 243
         s = kmalloc(sizeof(char) * 17,GFP_KERNEL);
         if(s == NULL){
             printk("errore nella kmalloc dell'awake_all");

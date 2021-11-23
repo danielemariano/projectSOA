@@ -1,15 +1,17 @@
 #include <user.h>
 
+
 /**
  * Frontend della tag_get
- * */
+ */
 int tag_get(int key, int command, int permission){
     return syscall(134, key, command, permission);
 }
 
+
 /**
  * Frontend della tag_send
- * */
+ */
 int tag_send(int tag, int level, char *buffer, size_t size){
     int ret;
     ret = syscall(174, tag, level, buffer, size);
@@ -20,23 +22,26 @@ int tag_send(int tag, int level, char *buffer, size_t size){
     return ret;
 }
 
+
 /**
  * Frontend della tag_receive
- * */
+ */
 int tag_receive(int tag, int level, char *buffer, size_t size){
     return syscall(182, tag, level, buffer, size);
 }
 
+
 /**
  * Frontend della tag_ctl
- * */
+ */
 int tag_ctl(int tag, int command){
     return syscall(183,tag,command);
 }
 
+
 /**
  * Prima suite di test
- * */
+ */
 void test_create_open_remove_tag(){
     /*
      * Testa la creazione un numero di tag (1)
@@ -73,9 +78,10 @@ void test_create_open_remove_tag(){
         printf("Rimosso correttamente il tag con key 100.\n");
 }
 
+
 /**
  * Routine eseguita da ogni thread nella suite del test per il device driver
- * */
+ */
 void * the_thread(void* path){
     char* device;
     int fd, ret;
@@ -97,9 +103,10 @@ void * the_thread(void* path){
     pthread_exit(EXIT_SUCCESS);
 }
 
+
 /**
  * Suite di test per il device driver
- * */
+ */
 void test_device_driver(){
     char *path = "/dev/driver";
     char buff[MSG_MAX_SIZE];
@@ -140,6 +147,7 @@ void test_device_driver(){
     printf("Esecuzione terminata\n");
 }
 
+
 /**
  * Funzione di supporto per lo sviluppo della suite di test per lo scambio dei messaggi.
  * Questa funzione ritorna il valore del livello.
@@ -171,10 +179,11 @@ int test_waiting_for_message(int key){
     return level;
 }
 
+
 /**
  * Questa suite testa la cancellazione di un tag e proviamo a
  * riaprirlo per verificare l'effettiva riuscita dell'azione
- * */
+ */
 int test_delete_and_open(int tag, int tid){
     int ret;
     int ctl;
@@ -196,9 +205,10 @@ int test_delete_and_open(int tag, int tid){
     return 0;
 }
 
+
 /**
  * Funzione di supporto per lo sviluppo della suite di test per lo scambio dei messaggi.
- * */
+ */
 int test_sending_message(int tag, int level, int tid){
     char *send_buf;
     int ret;
@@ -222,10 +232,11 @@ int test_sending_message(int tag, int level, int tid){
     return 0;
 }
 
+
 /**
  * Routine eseguita da ogni thread nella suite del test per
  * il funzionamento multithread del sottosistema
- * */
+ */
 int test_multithread(void *i){
     pthread_t tid;
     tid = pthread_self();
@@ -255,10 +266,11 @@ int test_multithread(void *i){
     }
 }
 
+
 /**
  * Test suite per il testing delle funzionalità che
  * implementano lo scambio multithread dei messaggi
- * */
+ */
 void test_create_multithread(){
     int i;
     int x;
@@ -281,9 +293,10 @@ void test_create_multithread(){
     return 0;
 }
 
+
 /**
  * Ulteriore suite di test per la rimozione dei tag
- * */
+ */
 int remove_for_test(){
     int i;
     int ret;
@@ -296,9 +309,10 @@ int remove_for_test(){
     return 0;
 }
 
+
 /**
  * Main da cui scegliamo quali e come test eseguire
- * */
+ */
 int main(int argc, char *argv[]){
     printf("Eseguo i test di creazione e rimozione dei tag.\n");
     test_create_open_remove_tag();

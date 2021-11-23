@@ -2,7 +2,7 @@
 
 /**
  * Struttura di utility che ci permette di capire
- * se un determinato livello può essere eliminato
+ * se un determinato livello può essere eliminato.
  * */
 int search_for_level(struct tag TAG_list){
     int i;
@@ -12,7 +12,7 @@ int search_for_level(struct tag TAG_list){
             continue;
         }
         else{
-            printk("Alemno un livello contiene un messaggio, non possiamo cancellare il tag.\n");
+            printk("Almeno un livello contiene un messaggio, non possiamo cancellare il tag.\n");
             return -1;
         }
     }
@@ -21,7 +21,7 @@ int search_for_level(struct tag TAG_list){
 }
 
 /**
- * Funzione che implementa l'eliminazione del tag
+ * Funzione che implementa l'eliminazione del tag.
 */
 struct tag delete_tag(struct tag TAG){
     TAG.exist = 0;
